@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: canary-store
+  namespace: shared-services
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: canary-store}
+  template:
+    metadata:
+      labels: {app: canary-store}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: canary-store
+          image: boundary-verifier/canary-store:exp-001
+          imagePullPolicy: IfNotPresent
+          ports: [{name: http, containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /healthz, port: http}}
+          livenessProbe: {httpGet: {path: /healthz, port: http}}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: canary-store
+  namespace: shared-services
+spec:
+  selector: {app: canary-store}
+  ports: [{name: http, port: 8080, targetPort: http}]
