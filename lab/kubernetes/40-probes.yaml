@@ -21,6 +21,8 @@ spec:
         capabilities: {drop: ["ALL"]}
         readOnlyRootFilesystem: true
         runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
 ---
 apiVersion: v1
 kind: Pod
@@ -45,3 +47,5 @@ spec:
         capabilities: {drop: ["ALL"]}
         readOnlyRootFilesystem: true
         runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
