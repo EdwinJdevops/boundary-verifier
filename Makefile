@@ -1,6 +1,6 @@
 IMAGE ?= boundary-verifier/canary-store:exp-001
 
-.PHONY: image apply wait exp001 clean
+.PHONY: image apply wait exp001 e2e clean
 image:
 	docker build -f Dockerfile.canary-store -t $(IMAGE) .
 apply:
@@ -8,6 +8,7 @@ apply:
 	kubectl apply -f lab/kubernetes/10-default-deny.yaml
 	kubectl apply -f lab/kubernetes/11-default-deny-ingress.yaml
 	kubectl apply -f lab/kubernetes/20-allow-shared-canary.yaml
+	kubectl apply -f lab/kubernetes/21-allow-canary-ingress.yaml
 	kubectl apply -f lab/kubernetes/30-canary-store.yaml
 	kubectl apply -f lab/kubernetes/35-peer-endpoint.yaml
 	kubectl apply -f lab/kubernetes/40-probes.yaml
@@ -19,5 +20,7 @@ wait:
 	kubectl -n tenant-b wait --for=condition=Ready pod/probe --timeout=120s
 exp001:
 	python3 scripts/run_exp001.py
+e2e:
+	bash scripts/e2e_exp001.sh
 clean:
 	kubectl delete namespace tenant-a tenant-b shared-services --ignore-not-found
