@@ -13,12 +13,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "artifacts"
-STORE = "canary-store.shared-services.svc.cluster.local:8080"
-A_PEER = "peer-endpoint.tenant-a.svc.cluster.local:8080"
-B_PEER = "peer-endpoint.tenant-b.svc.cluster.local:8080"
 
 def run(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run(args, text=True, capture_output=True, check=check)
+
+def service_ip(namespace: str, name: str) -> str:
+    result = run("kubectl", "-n", namespace, "get", "service", name, "-o", "jsonpath={.spec.clusterIP}")
+    value = result.stdout.strip()
+    if not value or value == "None":
+        raise RuntimeError(f"service {namespace}/{name} has no ClusterIP")
+    return value
 
 def kexec(ns: str, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     return run("kubectl", "-n", ns, "exec", "probe", "--", *args, check=check)
@@ -38,8 +42,8 @@ def record(run_id: str, scenario: str, status: str, edges: list[dict[str, str]],
         value["canary_sha256"] = digest
     return value
 
-def blocked_control(run_id: str, scenario: str, source_ns: str, destination: str, destination_name: str) -> dict:
-    probe = curl(source_ns, f"http://{destination}/healthz", check=False)
+def blocked_control(run_id: str, scenario: str, source_ns: str, destination_ip: str, destination_name: str) -> dict:
+    probe = curl(source_ns, f"http://{destination_ip}:8080/healthz", check=False)
     if probe.returncode != 0:
         return record(run_id, scenario, "OBSERVED_BLOCKED", [])
     return record(run_id, scenario, "OBSERVED_REACHABLE", [
@@ -50,16 +54,20 @@ def main() -> int:
     run_id = f"exp001-{int(time.time())}-{secrets.token_hex(4)}"
     canary = secrets.token_hex(32)
     digest = hashlib.sha256(canary.encode()).hexdigest()
+    store_ip = service_ip("shared-services", "canary-store")
+    a_peer_ip = service_ip("tenant-a", "peer-endpoint")
+    b_peer_ip = service_ip("tenant-b", "peer-endpoint")
+
     results = [
-        blocked_control(run_id, "direct-tenant-a-to-tenant-b", "tenant-a", B_PEER, "tenant-b/peer-endpoint"),
-        blocked_control(run_id, "direct-tenant-b-to-tenant-a", "tenant-b", A_PEER, "tenant-a/peer-endpoint"),
+        blocked_control(run_id, "direct-tenant-a-to-tenant-b", "tenant-a", b_peer_ip, "tenant-b/peer-endpoint"),
+        blocked_control(run_id, "direct-tenant-b-to-tenant-a", "tenant-b", a_peer_ip, "tenant-a/peer-endpoint"),
     ]
 
-    write = curl("tenant-a", f"http://{STORE}/v1/{run_id}", "-X", "PUT", "--data-binary", canary, check=False)
+    write = curl("tenant-a", f"http://{store_ip}:8080/v1/{run_id}", "-X", "PUT", "--data-binary", canary, check=False)
     if write.returncode != 0:
         results.append(record(run_id, "shared-state-path", "UNKNOWN", []))
     else:
-        read = curl("tenant-b", f"http://{STORE}/v1/{run_id}", check=False)
+        read = curl("tenant-b", f"http://{store_ip}:8080/v1/{run_id}", check=False)
         observed = None
         if read.returncode == 0:
             try:
