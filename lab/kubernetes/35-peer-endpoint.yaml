@@ -2,6 +2,45 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: peer-endpoint
+  namespace: tenant-a
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: peer-endpoint}
+  template:
+    metadata:
+      labels: {app: peer-endpoint}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: peer-endpoint
+          image: boundary-verifier/canary-store:exp-001
+          imagePullPolicy: IfNotPresent
+          ports: [{name: http, containerPort: 8080}]
+          resources:
+            requests: {cpu: 5m, memory: 8Mi}
+            limits: {cpu: 50m, memory: 32Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: peer-endpoint
+  namespace: tenant-a
+spec:
+  selector: {app: peer-endpoint}
+  ports: [{name: http, port: 8080, targetPort: http}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: peer-endpoint
   namespace: tenant-b
 spec:
   replicas: 1
