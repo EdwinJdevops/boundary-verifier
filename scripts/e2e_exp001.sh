@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CLUSTER_NAME="${CLUSTER_NAME:-boundary-verifier-exp001}"
+KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0}"
+CALICO_COMMIT="${CALICO_COMMIT:-db255c554b929afd73552fd3ac81d691107a1607}"
+IMAGE="${IMAGE:-boundary-verifier/canary-store:exp-001}"
+
+cleanup() {
+  if [[ "${KEEP_CLUSTER:-0}" != "1" ]]; then
+    kind delete cluster --name "$CLUSTER_NAME" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
+
+kind create cluster --name "$CLUSTER_NAME" --image "$KIND_NODE_IMAGE" --config lab/kind/exp001.yaml --wait 120s
+
+CALICO_URL="https://raw.githubusercontent.com/projectcalico/calico/$CALICO_COMMIT/manifests/calico.yaml"
+curl --fail --silent --show-error --location "$CALICO_URL" --output /tmp/calico.yaml
+kubectl apply -f /tmp/calico.yaml
+
+kubectl -n kube-system rollout status daemonset/calico-node --timeout=240s
+kubectl -n kube-system rollout status deployment/calico-kube-controllers --timeout=240s
+kubectl wait --for=condition=Ready nodes --all --timeout=240s
+
+docker build --pull -f Dockerfile.canary-store -t "$IMAGE" .
+kind load docker-image "$IMAGE" --name "$CLUSTER_NAME"
+
+kubectl apply -f lab/kubernetes/00-namespaces.yaml
+kubectl apply -f lab/kubernetes/10-default-deny.yaml
+kubectl apply -f lab/kubernetes/11-default-deny-ingress.yaml
+kubectl apply -f lab/kubernetes/20-allow-shared-canary.yaml
+kubectl apply -f lab/kubernetes/21-allow-canary-ingress.yaml
+kubectl apply -f lab/kubernetes/30-canary-store.yaml
+kubectl apply -f lab/kubernetes/35-peer-endpoint.yaml
+kubectl apply -f lab/kubernetes/40-probes.yaml
+
+kubectl -n shared-services rollout status deployment/canary-store --timeout=120s
+kubectl -n tenant-a rollout status deployment/peer-endpoint --timeout=120s
+kubectl -n tenant-b rollout status deployment/peer-endpoint --timeout=120s
+kubectl -n tenant-a wait --for=condition=Ready pod/probe --timeout=120s
+kubectl -n tenant-b wait --for=condition=Ready pod/probe --timeout=120s
+
+# Positive control: peer endpoints themselves must be healthy from inside their own namespace
+# before a cross-tenant timeout can be interpreted as isolation evidence.
+A_IP="$(kubectl -n tenant-a get svc peer-endpoint -o jsonpath='{.spec.clusterIP}')"
+B_IP="$(kubectl -n tenant-b get svc peer-endpoint -o jsonpath='{.spec.clusterIP}')"
+kubectl -n tenant-a exec probe -- curl --silent --show-error --fail --max-time 3 "http://$A_IP:8080/healthz" >/dev/null
+kubectl -n tenant-b exec probe -- curl --silent --show-error --fail --max-time 3 "http://$B_IP:8080/healthz" >/dev/null
+
+python3 scripts/run_exp001.py
