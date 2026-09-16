@@ -13,10 +13,11 @@ apply:
 	kubectl apply -f lab/kubernetes/40-probes.yaml
 wait:
 	kubectl -n shared-services rollout status deployment/canary-store --timeout=120s
+	kubectl -n tenant-a rollout status deployment/peer-endpoint --timeout=120s
 	kubectl -n tenant-b rollout status deployment/peer-endpoint --timeout=120s
 	kubectl -n tenant-a wait --for=condition=Ready pod/probe --timeout=120s
 	kubectl -n tenant-b wait --for=condition=Ready pod/probe --timeout=120s
 exp001:
-	sh scripts/exp001.sh
+	python3 scripts/run_exp001.py
 clean:
 	kubectl delete namespace tenant-a tenant-b shared-services --ignore-not-found
