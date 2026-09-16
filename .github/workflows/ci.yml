@@ -1,0 +1,55 @@
+name: ci
+
+on:
+  push:
+    branches: [main, exp-001/isolation-lab]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Compile Python
+        run: python3 -m compileall -q cmd
+
+      - name: Validate JSON documents
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          for path in Path(".").rglob("*.json"):
+              json.loads(path.read_text())
+              print(f"valid json: {path}")
+          PY
+
+      - name: Build canary-store image
+        run: docker build --pull -f Dockerfile.canary-store -t boundary-verifier/canary-store:ci .
+
+      - name: Smoke-test canary-store
+        run: |
+          set -euo pipefail
+          cid="$(docker run -d --rm -p 127.0.0.1:18080:8080 boundary-verifier/canary-store:ci)"
+          trap 'docker stop "$cid" >/dev/null 2>&1 || true' EXIT
+          for i in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:18080/healthz >/dev/null; then break; fi
+            sleep 0.25
+          done
+          curl --fail --silent http://127.0.0.1:18080/healthz
+          printf 'ci-canary' > /tmp/canary
+          curl --fail --silent -X PUT --data-binary @/tmp/canary http://127.0.0.1:18080/v1/ci-smoke
+          value="$(curl --fail --silent http://127.0.0.1:18080/v1/ci-smoke | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
+          test "$value" = "ci-canary"

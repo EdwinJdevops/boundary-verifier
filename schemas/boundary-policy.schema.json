@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://boundary-verifier.dev/schemas/boundary-policy.schema.json",
+  "title": "Boundary Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "subject", "forbid"],
+  "properties": {
+    "apiVersion": {"const": "boundary-verifier.dev/v1alpha1"},
+    "kind": {"const": "BoundaryPolicy"},
+    "subject": {"type": "string", "minLength": 1},
+    "forbid": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["capability", "target"],
+        "properties": {
+          "capability": {
+            "enum": ["DIRECT_CONNECT", "EXTERNAL_EGRESS", "CROSS_TENANT_COMMUNICATION", "SHARED_STATE_COMMUNICATION"]
+          },
+          "target": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

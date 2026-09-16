@@ -1,0 +1,10 @@
+{
+  "apiVersion": "boundary-verifier.dev/v1alpha1",
+  "kind": "BoundaryPolicy",
+  "subject": "k8s://tenant-a/probe",
+  "forbid": [
+    {"capability": "DIRECT_CONNECT", "target": "k8s://tenant-b/*"},
+    {"capability": "EXTERNAL_EGRESS", "target": "internet://*"},
+    {"capability": "SHARED_STATE_COMMUNICATION", "target": "k8s://tenant-b/*"}
+  ]
+}
