@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://boundary-verifier.dev/schemas/experiment-run.schema.json",
+  "title": "Boundary Verifier Experiment Run",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["experiment", "results"],
+  "properties": {
+    "experiment": {"const": "EXP-001"},
+    "results": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "evidence.schema.json"}
+    }
+  }
+}
