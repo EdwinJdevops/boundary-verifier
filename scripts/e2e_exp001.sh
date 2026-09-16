@@ -13,6 +13,29 @@ cleanup() {
 }
 trap cleanup EXIT
 
+diagnostics() {
+  local rc=$?
+  if [[ $rc -eq 0 ]]; then
+    return 0
+  fi
+  set +e
+  echo "::group::EXP-001 failure diagnostics"
+  kubectl get nodes -o wide
+  kubectl get pods -A -o wide
+  for ns in shared-services tenant-a tenant-b; do
+    echo "===== namespace: $ns ====="
+    kubectl -n "$ns" get all -o wide
+    kubectl -n "$ns" get events --sort-by=.lastTimestamp
+    kubectl -n "$ns" describe pods
+    for pod in $(kubectl -n "$ns" get pods -o name 2>/dev/null); do
+      kubectl -n "$ns" logs "$pod" --all-containers --tail=200 2>/dev/null || true
+    done
+  done
+  echo "::endgroup::"
+  return $rc
+}
+trap diagnostics ERR
+
 kind create cluster --name "$CLUSTER_NAME" --image "$KIND_NODE_IMAGE" --config lab/kind/exp001.yaml --wait 120s
 
 CALICO_URL="https://raw.githubusercontent.com/projectcalico/calico/$CALICO_COMMIT/manifests/calico.yaml"
