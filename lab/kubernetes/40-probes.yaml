@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: probe
+  namespace: tenant-a
+  labels: {app: probe}
+spec:
+  automountServiceAccountToken: false
+  restartPolicy: Never
+  securityContext:
+    seccompProfile: {type: RuntimeDefault}
+  containers:
+    - name: probe
+      image: curlimages/curl:8.16.0
+      command: ["sh","-c","sleep infinity"]
+      resources:
+        requests: {cpu: 5m, memory: 8Mi}
+        limits: {cpu: 50m, memory: 32Mi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: ["ALL"]}
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: probe
+  namespace: tenant-b
+  labels: {app: probe}
+spec:
+  automountServiceAccountToken: false
+  restartPolicy: Never
+  securityContext:
+    seccompProfile: {type: RuntimeDefault}
+  containers:
+    - name: probe
+      image: curlimages/curl:8.16.0
+      command: ["sh","-c","sleep infinity"]
+      resources:
+        requests: {cpu: 5m, memory: 8Mi}
+        limits: {cpu: 50m, memory: 32Mi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: ["ALL"]}
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
