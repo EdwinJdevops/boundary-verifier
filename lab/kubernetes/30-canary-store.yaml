@@ -17,7 +17,7 @@ spec:
       containers:
         - name: canary-store
           image: boundary-verifier/canary-store:exp-001
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           ports: [{name: http, containerPort: 8080}]
           readinessProbe: {httpGet: {path: /healthz, port: http}}
           livenessProbe: {httpGet: {path: /healthz, port: http}}
