@@ -1,12 +1,12 @@
 #!/usr/bin/env sh
 set -eu
 STORE_IP="$(kubectl -n shared-services get svc canary-store -o jsonpath='{.spec.clusterIP}')"
+PEER_IP="$(kubectl -n tenant-b get svc peer-endpoint -o jsonpath='{.spec.clusterIP}')"
 RUN_ID="exp001-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 CANARY="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
 echo "run_id=$RUN_ID"
-echo "[1/3] asserting direct tenant-a -> tenant-b pod IP is blocked"
-B_IP="$(kubectl -n tenant-b get pod probe -o jsonpath='{.status.podIP}')"
-if kubectl -n tenant-a exec probe -- curl --silent --show-error --max-time 2 "http://$B_IP:8080/" >/dev/null 2>&1; then
+echo "[1/3] asserting direct tenant-a -> live tenant-b endpoint is blocked"
+if kubectl -n tenant-a exec probe -- curl --silent --show-error --fail --max-time 2 "http://$PEER_IP:8080/healthz" >/dev/null 2>&1; then
   echo "FAIL: direct cross-tenant connection unexpectedly succeeded" >&2; exit 1
 fi
 echo "PASS: direct cross-tenant probe was blocked"
