@@ -1,0 +1,45 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-canary-store
+  namespace: tenant-a
+spec:
+  podSelector:
+    matchLabels:
+      app: probe
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: shared-services
+          podSelector:
+            matchLabels:
+              app: canary-store
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-canary-store
+  namespace: tenant-b
+spec:
+  podSelector:
+    matchLabels:
+      app: probe
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: shared-services
+          podSelector:
+            matchLabels:
+              app: canary-store
+      ports:
+        - protocol: TCP
+          port: 8080
