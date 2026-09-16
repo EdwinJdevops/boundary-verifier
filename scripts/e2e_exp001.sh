@@ -18,7 +18,6 @@ kind create cluster --name "$CLUSTER_NAME" --image "$KIND_NODE_IMAGE" --config l
 CALICO_URL="https://raw.githubusercontent.com/projectcalico/calico/$CALICO_COMMIT/manifests/calico.yaml"
 curl --fail --silent --show-error --location "$CALICO_URL" --output /tmp/calico.yaml
 kubectl apply -f /tmp/calico.yaml
-
 kubectl -n kube-system rollout status daemonset/calico-node --timeout=240s
 kubectl -n kube-system rollout status deployment/calico-kube-controllers --timeout=240s
 kubectl wait --for=condition=Ready nodes --all --timeout=240s
@@ -26,11 +25,9 @@ kubectl wait --for=condition=Ready nodes --all --timeout=240s
 docker build --pull -f Dockerfile.canary-store -t "$IMAGE" .
 kind load docker-image "$IMAGE" --name "$CLUSTER_NAME"
 
+# Bring up endpoints before policy. This lets the experiment prove that later
+# failures are caused by isolation rather than dead destinations.
 kubectl apply -f lab/kubernetes/00-namespaces.yaml
-kubectl apply -f lab/kubernetes/10-default-deny.yaml
-kubectl apply -f lab/kubernetes/11-default-deny-ingress.yaml
-kubectl apply -f lab/kubernetes/20-allow-shared-canary.yaml
-kubectl apply -f lab/kubernetes/21-allow-canary-ingress.yaml
 kubectl apply -f lab/kubernetes/30-canary-store.yaml
 kubectl apply -f lab/kubernetes/35-peer-endpoint.yaml
 kubectl apply -f lab/kubernetes/40-probes.yaml
@@ -41,11 +38,18 @@ kubectl -n tenant-b rollout status deployment/peer-endpoint --timeout=120s
 kubectl -n tenant-a wait --for=condition=Ready pod/probe --timeout=120s
 kubectl -n tenant-b wait --for=condition=Ready pod/probe --timeout=120s
 
-# Positive control: peer endpoints themselves must be healthy from inside their own namespace
-# before a cross-tenant timeout can be interpreted as isolation evidence.
 A_IP="$(kubectl -n tenant-a get svc peer-endpoint -o jsonpath='{.spec.clusterIP}')"
 B_IP="$(kubectl -n tenant-b get svc peer-endpoint -o jsonpath='{.spec.clusterIP}')"
-kubectl -n tenant-a exec probe -- curl --silent --show-error --fail --max-time 3 "http://$A_IP:8080/healthz" >/dev/null
-kubectl -n tenant-b exec probe -- curl --silent --show-error --fail --max-time 3 "http://$B_IP:8080/healthz" >/dev/null
+STORE_IP="$(kubectl -n shared-services get svc canary-store -o jsonpath='{.spec.clusterIP}')"
+kubectl -n tenant-a exec probe -- curl --silent --show-error --fail --max-time 3 "http://$B_IP:8080/healthz" >/dev/null
+kubectl -n tenant-b exec probe -- curl --silent --show-error --fail --max-time 3 "http://$A_IP:8080/healthz" >/dev/null
+kubectl -n tenant-a exec probe -- curl --silent --show-error --fail --max-time 3 "http://$STORE_IP:8080/healthz" >/dev/null
+kubectl -n tenant-b exec probe -- curl --silent --show-error --fail --max-time 3 "http://$STORE_IP:8080/healthz" >/dev/null
+
+# Only after reachability is proven do we introduce the declared isolation.
+kubectl apply -f lab/kubernetes/10-default-deny.yaml
+kubectl apply -f lab/kubernetes/11-default-deny-ingress.yaml
+kubectl apply -f lab/kubernetes/20-allow-shared-canary.yaml
+kubectl apply -f lab/kubernetes/21-allow-canary-ingress.yaml
 
 python3 scripts/run_exp001.py
