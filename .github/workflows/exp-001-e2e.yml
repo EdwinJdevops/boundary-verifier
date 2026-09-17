@@ -26,12 +26,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --location             https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64             --output /tmp/kind
+          curl --fail --silent --show-error --location \
+            https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64 \
+            --output /tmp/kind
           echo "aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d  /tmp/kind" | sha256sum --check
           chmod +x /tmp/kind
           sudo install /tmp/kind /usr/local/bin/kind
           kind version
           kubectl version --client
+
+      - name: Install evidence validator dependency
+        run: python3 -m pip install --disable-pip-version-check 'jsonschema==4.25.1'
 
       - name: Run EXP-001 on kind + Calico
         run: bash scripts/e2e_exp001.sh
