@@ -1,31 +1,60 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://boundary-verifier.dev/schemas/evidence.schema.json",
-  "title": "Boundary Verifier Evidence",
+  "title": "Boundary Verifier EXP-001 Evidence Document",
   "type": "object",
   "additionalProperties": false,
-  "required": ["run_id", "scenario", "status", "observed_at", "edges"],
+  "required": ["experiment", "evidence_version", "provenance", "results"],
   "properties": {
-    "run_id": {"type": "string", "minLength": 1},
-    "scenario": {"type": "string", "minLength": 1},
-    "status": {
-      "enum": ["OBSERVED_REACHABLE", "OBSERVED_BLOCKED", "UNKNOWN", "NOT_EVALUATED"]
+    "experiment": {"const": "EXP-001"},
+    "evidence_version": {"const": 2},
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["git_sha", "kubernetes_version", "kind_node_image", "calico_commit", "policy_sha256"],
+      "properties": {
+        "git_sha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+        "kubernetes_version": {"type": "string", "minLength": 1},
+        "kind_node_image": {"type": "string", "minLength": 1},
+        "calico_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+        "policy_sha256": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+        }
+      }
     },
-    "observed_at": {"type": "string", "format": "date-time"},
-    "canary_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-    "edges": {
+    "results": {
       "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["from", "relation", "to", "evidence"],
-        "properties": {
-          "from": {"type": "string"},
-          "relation": {
-            "enum": ["CAN_CONNECT", "CAN_WRITE", "CAN_READ", "CAN_PROXY_THROUGH"]
-          },
-          "to": {"type": "string"},
-          "evidence": {"type": "string", "minLength": 1}
+      "minItems": 3,
+      "items": {"$ref": "#/$defs/result"}
+    }
+  },
+  "$defs": {
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "scenario", "status", "observed_at", "observation", "edges"],
+      "properties": {
+        "run_id": {"type": "string", "minLength": 1},
+        "scenario": {"type": "string", "minLength": 1},
+        "status": {"enum": ["OBSERVED_REACHABLE", "OBSERVED_BLOCKED", "UNKNOWN", "NOT_EVALUATED"]},
+        "observed_at": {"type": "string", "format": "date-time"},
+        "canary_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "observation": {"type": "object"},
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["from", "relation", "to", "evidence"],
+            "properties": {
+              "from": {"type": "string"},
+              "relation": {"enum": ["CAN_CONNECT", "CAN_WRITE", "CAN_READ", "CAN_PROXY_THROUGH"]},
+              "to": {"type": "string"},
+              "evidence": {"type": "string", "minLength": 1}
+            }
+          }
         }
       }
     }
