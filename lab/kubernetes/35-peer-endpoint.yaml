@@ -17,7 +17,7 @@ spec:
       containers:
         - name: peer-endpoint
           image: boundary-verifier/canary-store:exp-001
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           ports: [{name: http, containerPort: 8080}]
           resources:
             requests: {cpu: 5m, memory: 8Mi}
@@ -56,7 +56,7 @@ spec:
       containers:
         - name: peer-endpoint
           image: boundary-verifier/canary-store:exp-001
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           ports: [{name: http, containerPort: 8080}]
           resources:
             requests: {cpu: 5m, memory: 8Mi}

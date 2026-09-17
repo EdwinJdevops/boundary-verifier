@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-canary-store-ingress
+  namespace: shared-services
+spec:
+  podSelector:
+    matchLabels:
+      app: canary-store
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values: [tenant-a, tenant-b]
+          podSelector:
+            matchLabels:
+              app: probe
+      ports:
+        - protocol: TCP
+          port: 8080

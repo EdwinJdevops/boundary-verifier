@@ -1,0 +1,46 @@
+name: exp-001-e2e
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: exp-001-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kind-calico:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned kind
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location             https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64             --output /tmp/kind
+          echo "aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d  /tmp/kind" | sha256sum --check
+          chmod +x /tmp/kind
+          sudo install /tmp/kind /usr/local/bin/kind
+          kind version
+          kubectl version --client
+
+      - name: Run EXP-001 on kind + Calico
+        run: bash scripts/e2e_exp001.sh
+
+      - name: Upload experiment evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: exp-001-evidence
+          path: artifacts/*.json
+          if-no-files-found: warn
+          retention-days: 14

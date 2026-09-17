@@ -4,7 +4,12 @@ import hashlib, json, os, re, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
-HOST=os.getenv("CANARY_STORE_HOST","0.0.0.0"); PORT=int(os.getenv("CANARY_STORE_PORT","8080"))
+# Kubernetes may inject legacy Service environment variables such as
+# CANARY_STORE_PORT=tcp://10.x.x.x:8080 when a Service shares this workload's
+# name. Do not use a collision-prone Service-derived variable as application
+# configuration. BV_CANARY_STORE_* is owned by this process.
+HOST=os.getenv("BV_CANARY_STORE_HOST","0.0.0.0")
+PORT=int(os.getenv("BV_CANARY_STORE_PORT","8080"))
 MAX_BODY=4096; RUN_ID=re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 _store={}; _lock=threading.Lock()
 
