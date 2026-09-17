@@ -6,18 +6,7 @@ KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-kindest/node:v1.35.8@sha256:07b2536e30b803ed
 CALICO_COMMIT="${CALICO_COMMIT:-db255c554b929afd73552fd3ac81d691107a1607}"
 IMAGE="${IMAGE:-boundary-verifier/canary-store:exp-001}"
 
-cleanup() {
-  if [[ "${KEEP_CLUSTER:-0}" != "1" ]]; then
-    kind delete cluster --name "$CLUSTER_NAME" >/dev/null 2>&1 || true
-  fi
-}
-trap cleanup EXIT
-
 diagnostics() {
-  local rc=$?
-  if [[ $rc -eq 0 ]]; then
-    return 0
-  fi
   set +e
   echo "::group::EXP-001 failure diagnostics"
   kubectl get nodes -o wide
@@ -32,11 +21,25 @@ diagnostics() {
     done
   done
   echo "::endgroup::"
-  return $rc
 }
-trap diagnostics ERR
 
-kind create cluster --name "$CLUSTER_NAME" --image "$KIND_NODE_IMAGE" --config lab/kind/exp001.yaml --wait 120s
+on_exit() {
+  local rc=$?
+  trap - EXIT
+  if [[ $rc -ne 0 ]]; then
+    diagnostics
+  fi
+  if [[ "${KEEP_CLUSTER:-0}" != "1" ]]; then
+    kind delete cluster --name "$CLUSTER_NAME" >/dev/null 2>&1 || true
+  fi
+  exit "$rc"
+}
+trap on_exit EXIT
+
+# The cluster intentionally starts without a CNI, so nodes cannot become Ready
+# during kind creation. Waiting here produces a misleading timeout. Install
+# Calico first, then make node readiness an explicit acceptance gate below.
+kind create cluster --name "$CLUSTER_NAME" --image "$KIND_NODE_IMAGE" --config lab/kind/exp001.yaml
 
 CALICO_URL="https://raw.githubusercontent.com/projectcalico/calico/$CALICO_COMMIT/manifests/calico.yaml"
 curl --fail --silent --show-error --location "$CALICO_URL" --output /tmp/calico.yaml
