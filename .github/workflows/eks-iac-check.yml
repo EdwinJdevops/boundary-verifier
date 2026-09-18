@@ -1,0 +1,37 @@
+name: eks-iac-check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/eks/**"
+      - "lab/eks/**"
+      - "scripts/verify_eks_destroy.py"
+      - ".github/workflows/eks-iac-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  terraform-static:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: 1.13.3
+
+      - name: Terraform format
+        run: terraform -chdir=infra/eks fmt -check -diff
+
+      - name: Terraform init without backend
+        run: terraform -chdir=infra/eks init -backend=false
+
+      - name: Terraform validate
+        run: terraform -chdir=infra/eks validate
+
+      - name: Compile teardown verifier
+        run: python3 -m py_compile scripts/verify_eks_destroy.py
