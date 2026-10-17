@@ -28,8 +28,24 @@ def service_ip(namespace: str, name: str) -> str:
     return value
 
 
+def probe_target(ns: str) -> str:
+    """Select exactly one ready probe Pod, including Deployment-owned Pods."""
+    response = run("kubectl", "-n", ns, "get", "pods", "-l", "app=probe", "-o", "json")
+    pods = json.loads(response.stdout).get("items", [])
+    ready = [
+        p["metadata"]["name"]
+        for p in pods
+        if p.get("status", {}).get("phase") == "Running"
+        and any(c.get("type") == "Ready" and c.get("status") == "True"
+                for c in p.get("status", {}).get("conditions", []))
+    ]
+    if len(ready) != 1:
+        raise RuntimeError(f"expected one ready probe in {ns}; found {len(ready)}")
+    return ready[0]
+
+
 def kexec(ns: str, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return run("kubectl", "-n", ns, "exec", "probe", "--", *args, check=check)
+    return run("kubectl", "-n", ns, "exec", probe_target(ns), "--", *args, check=check)
 
 
 def curl(ns: str, url: str, *extra: str, check: bool = True) -> subprocess.CompletedProcess[str]:
