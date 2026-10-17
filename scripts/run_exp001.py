@@ -63,15 +63,14 @@ def now() -> str:
 def classify_connect_probe(probe: subprocess.CompletedProcess[str]) -> tuple[str, str]:
     """Classify curl without turning arbitrary transport failures into policy evidence.
 
-    curl 28 is a timeout. EXP-001 establishes endpoint liveness immediately before
-    policy application, so a post-policy timeout is the narrow negative observation
-    accepted by this experiment. DNS, connection-refused, TLS, HTTP and exec errors
-    remain UNKNOWN rather than being mislabeled as policy enforcement.
+    curl 28 is a timeout, not proof of policy enforcement. Until destination
+    health and policy-agent corroboration are implemented, timeouts remain UNKNOWN.
+    DNS, connection-refused, TLS, HTTP and exec errors are also UNKNOWN.
     """
     if probe.returncode == 0:
         return "OBSERVED_REACHABLE", "HTTP health probe succeeded"
     if probe.returncode == 28:
-        return "OBSERVED_BLOCKED", "HTTP probe timed out after pre-policy liveness control"
+        return "UNKNOWN", "HTTP probe timed out; timeout alone cannot attribute failure to NetworkPolicy"
     detail = (probe.stderr or probe.stdout or "curl failed").strip()[-500:]
     return "UNKNOWN", f"probe failed with curl exit {probe.returncode}: {detail}"
 
